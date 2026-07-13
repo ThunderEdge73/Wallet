@@ -51,7 +51,7 @@ local function create_ease_func(currency_obj)
 				dollar_UI.config.object:update()
 				G.HUD:recalculate()
 				attention_text({
-					text = text .. tostring(math.abs(mod)),
+					text = text,
 					scale = 0.8,
 					hold = 0.7,
 					cover = dollar_UI.parent,
@@ -361,9 +361,8 @@ function Game:update(dt, ...)
 	end
 end
 
-local start_run_hook = Game.start_run
-function Game:start_run(args, ...)
-	local ret = start_run_hook(self, args, ...)
-	Wallet.init_currencies()
-	return ret
+SMODS.current_mod.reset_game_globals = function(run_start)
+	if run_start then
+		Wallet.init_currencies()
+	end
 end
