@@ -243,7 +243,9 @@ function Wallet.generate_currency_hover_UIBox()
 	local collision_obj = G.HUD:get_UIE_by_ID("dollar_text_UI").parent.parent.parent
 	local lines = {}
 	for _, key in ipairs(Wallet.Currency.obj_buffer) do
-		lines[#lines + 1] = Wallet.currency_uidef(key)
+		if not Wallet.Currencies[key].no_ui then
+			lines[#lines + 1] = Wallet.currency_uidef(key)
+		end
 	end
 	local temp_box = UIBox({
 		definition = {
