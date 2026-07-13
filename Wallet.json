@@ -6,7 +6,7 @@
     ],
     "description": "An API for custom currencies.",
     "prefix": "wal",
-    "main_file": "Wallet.lua",
+    "main_file": "wallet.lua",
     "priority": 0,
     "badge_colour": "f3b958",
     "version": "1.0.0",
