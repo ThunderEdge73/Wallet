@@ -1,0 +1,19 @@
+# VS Code config
+.vscode
+.config
+
+# Vim config
+*.vim
+
+# Lua LSP config
+.luarc.json
+.emmyrc.json
+
+# Zed config
+.zed
+
+# For when the mod is disabled
+.lovelyignore
+
+# Debug
+debug.lua
