@@ -87,6 +87,12 @@ Wallet.Currency = SMODS.GameObject:extend({
 	inject = function(self, i)
 		Wallet.perma_ability_keys["h_" .. self.key] = 0
 		Wallet.perma_ability_keys["p_" .. self.key] = 0
+		SMODS.other_calculation_keys[#SMODS.other_calculation_keys + 1] = self.key
+		SMODS.other_calculation_keys[#SMODS.other_calculation_keys + 1] = "h_" .. self.key
+		SMODS.other_calculation_keys[#SMODS.other_calculation_keys + 1] = "p_" .. self.key
+		SMODS.calculation_keys[#SMODS.calculation_keys + 1] = self.key
+		SMODS.calculation_keys[#SMODS.calculation_keys + 1] = "h_" .. self.key
+		SMODS.calculation_keys[#SMODS.calculation_keys + 1] = "p_" .. self.key
 	end,
 	register = function(self)
 		if self.registered then
@@ -131,7 +137,7 @@ function SMODS.calculate_individual_effect(effect, scored_card, key, amount, fro
 			if effect.card and effect.card ~= scored_card then
 				juice_card(effect.card)
 			end
-			ease_dollars(amount, effect.instant)
+			Wallet.ease_currency_funcs[currency.key](amount, effect.instant)
 			local final_amt = Wallet.ease_currency_calc
 			Wallet.ease_currency_calc = nil
 			if not effect.remove_default_message then
@@ -142,7 +148,10 @@ function SMODS.calculate_individual_effect(effect, scored_card, key, amount, fro
 						nil,
 						percent,
 						nil,
-						effect.dollar_message
+						effect.dollar_message,
+						{
+							font = currency.font
+						}
 					)
 				elseif final_amt ~= 0 then
 					card_eval_status_text(
@@ -157,11 +166,14 @@ function SMODS.calculate_individual_effect(effect, scored_card, key, amount, fro
 							delay = 0.65,
 							message = currency:generate_ease_text(final_amt),
 							colour = final_amt >= 0 and currency.colour or currency.decrease_colour,
+							font = currency.font
 						}
 					)
 				end
 			end
-			currency:post_ease_func(final_amt)
+			if currency.post_ease_func then
+				currency:post_ease_func(final_amt)
+			end
 			return true
 		end
 	end
