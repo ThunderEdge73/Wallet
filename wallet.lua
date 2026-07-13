@@ -358,3 +358,10 @@ function Game:update(dt, ...)
 		end
 	end
 end
+
+local start_run_hook = Game.start_run
+function Game:start_run(args, ...)
+	local ret = start_run_hook(self, args, ...)
+	Wallet.init_currencies()
+	return ret
+end
