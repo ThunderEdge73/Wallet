@@ -383,7 +383,7 @@ local localize_bonuses_hook = SMODS.localize_perma_bonuses
 function SMODS.localize_perma_bonuses(specific_vars, desc_nodes, ...)
 	localize_bonuses_hook(specific_vars, desc_nodes, ...)
 	for _, key in ipairs(Wallet.Currency.obj_buffer) do
-		for _, prefix in ipairs("p_", "h_") do
+		for _, prefix in ipairs({"p_", "h_"}) do
 			if specific_vars and specific_vars[prefix .. key] then
 				localize({
 					type = "other",
