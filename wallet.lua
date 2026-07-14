@@ -150,7 +150,7 @@ function SMODS.calculate_individual_effect(effect, scored_card, key, amount, fro
 						nil,
 						effect.dollar_message,
 						{
-							font = currency.font
+							font = currency.font,
 						}
 					)
 				elseif final_amt ~= 0 then
@@ -166,7 +166,7 @@ function SMODS.calculate_individual_effect(effect, scored_card, key, amount, fro
 							delay = 0.65,
 							message = currency:generate_ease_text(final_amt),
 							colour = final_amt >= 0 and currency.colour or currency.decrease_colour,
-							font = currency.font
+							font = currency.font,
 						}
 					)
 				end
@@ -376,5 +376,22 @@ end
 SMODS.current_mod.reset_game_globals = function(run_start)
 	if run_start then
 		Wallet.init_currencies()
+	end
+end
+
+local localize_bonuses_hook = SMODS.localize_perma_bonuses
+function SMODS.localize_perma_bonuses(specific_vars, desc_nodes, ...)
+	localize_bonuses_hook(specific_vars, desc_nodes, ...)
+	for _, key in ipairs(Wallet.Currency.obj_buffer) do
+		for _, prefix in ipairs("p_", "h_") do
+			if specific_vars and specific_vars[prefix .. key] then
+				localize({
+					type = "other",
+					key = prefix .. key,
+					nodes = desc_nodes,
+					vars = { SMODS.signed(specific_vars[prefix .. key]) },
+				})
+			end
+		end
 	end
 end
