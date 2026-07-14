@@ -389,7 +389,7 @@ function SMODS.localize_perma_bonuses(specific_vars, desc_nodes, ...)
 					type = "other",
 					key = prefix .. key,
 					nodes = desc_nodes,
-					vars = { SMODS.signed(specific_vars[prefix .. key]) },
+					vars = { Wallet.Currencies[key]:generate_ease_text(specific_vars[prefix .. key]) },
 				})
 			end
 		end
