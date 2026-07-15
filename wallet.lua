@@ -29,7 +29,7 @@ function Wallet.mod_buffer(currency, amt)
 	end
 end
 
-function Wallet.reset_buffer(currency, amt)
+function Wallet.reset_buffer(currency)
 	G.E_MANAGER:add_event(Event({
 		func = function()
 			if currency == nil or currency == "$" or currency == "dollars" then
