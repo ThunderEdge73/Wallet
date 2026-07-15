@@ -1,6 +1,6 @@
 Wallet = {}
 
-Wallet.perma_ability_keys = {}
+Wallet.ability_keys = {}
 Wallet.ease_currency_funcs = {}
 
 -- for convenience
@@ -21,9 +21,46 @@ function Wallet.hook_currency_ease_func(key, before_func, after_func)
 	end
 end
 
+function Wallet.mod_buffer(currency, amt)
+	if currency == nil or currency == "$" or currency == "dollars" then
+		G.GAME.dollar_buffer = (G.GAME.dollar_buffer or 0) + amt
+	else
+		G.GAME[currency .. "_buffer"] = (G.GAME[currency .. "_buffer"] or 0) + amt
+	end
+end
+
+function Wallet.reset_buffer(currency, amt)
+	G.E_MANAGER:add_event(Event({
+		func = function()
+			if currency == nil or currency == "$" or currency == "dollars" then
+				G.GAME.dollar_buffer = 0
+			else
+				G.GAME[currency .. "_buffer"] = 0
+			end
+			return true
+		end,
+	}))
+end
+
 function Wallet.populate_ability_keys(card, new_ability)
-	for key, val in pairs(Wallet.perma_ability_keys) do
-		new_ability[key] = card.ability and card.ability[key] or val
+	for _, key in ipairs(Wallet.ability_keys) do
+		new_ability[key.perma] = card.ability and card.ability[key.perma] or 0
+	end
+end
+
+function Wallet.populate_loc_vars(card, vars)
+	for _, key in ipairs(Wallet.ability_keys) do
+		vars[key.bonus] = (card.ability[key.perma] or 0) ~= 0 and card.ability[key.perma] or nil
+	end
+end
+
+function Wallet.handle_ability_calc(ret, card)
+	for _, key in ipairs(Wallet.ability_keys) do
+		if (card.ability[key.perma] or 0) ~= 0 then
+			Wallet.mod_buffer(key.key, card.ability[key.perma])
+			ret.playing_card[key.key] = card.ability[key.perma]
+			Wallet.reset_buffer(key.key)
+		end
 	end
 end
 
@@ -85,14 +122,26 @@ end
 Wallet.Currency = SMODS.GameObject:extend({
 	set = "wal_Currency",
 	inject = function(self, i)
-		Wallet.perma_ability_keys["h_" .. self.key] = 0
-		Wallet.perma_ability_keys["p_" .. self.key] = 0
+		Wallet.ability_keys[#Wallet.ability_keys + 1] = {
+			perma = "perma_p_" .. self.key,
+			bonus = "bonus_p_" .. self.key,
+			ability = "p_" .. self.key,
+			key = self.key,
+		}
+		Wallet.ability_keys[#Wallet.ability_keys + 1] = {
+			perma = "perma_h_" .. self.key,
+			bonus = "bonus_h_" .. self.key,
+			ability = "h_" .. self.key,
+			key = self.key,
+		}
+
+		SMODS.other_calculation_keys[#SMODS.other_calculation_keys + 1] = "p_" .. self.key
 		SMODS.other_calculation_keys[#SMODS.other_calculation_keys + 1] = self.key
 		SMODS.other_calculation_keys[#SMODS.other_calculation_keys + 1] = "h_" .. self.key
-		SMODS.other_calculation_keys[#SMODS.other_calculation_keys + 1] = "p_" .. self.key
+
+		SMODS.calculation_keys[#SMODS.calculation_keys + 1] = "p_" .. self.key
 		SMODS.calculation_keys[#SMODS.calculation_keys + 1] = self.key
 		SMODS.calculation_keys[#SMODS.calculation_keys + 1] = "h_" .. self.key
-		SMODS.calculation_keys[#SMODS.calculation_keys + 1] = "p_" .. self.key
 	end,
 	register = function(self)
 		if self.registered then
@@ -126,13 +175,15 @@ function Wallet.init_currencies()
 	for key, currency in pairs(Wallet.Currencies) do
 		-- in case this function is called more than once at start of run
 		G.GAME[key] = G.GAME[key] or currency.starting_amount
+		G.GAME[key .. "_buffer"] = 0
 	end
 end
 
 local calc_individual_effect_hook = SMODS.calculate_individual_effect
 function SMODS.calculate_individual_effect(effect, scored_card, key, amount, from_edition)
 	local ret = calc_individual_effect_hook(effect, scored_card, key, amount, from_edition)
-	for _, currency in pairs(Wallet.Currencies) do
+	for _, k in pairs(Wallet.Currency.obj_buffer) do
+		local currency = Wallet.Currencies[k]
 		if key == currency.key or key == "p_" .. currency.key or key == "h_" .. currency.key then
 			if effect.card and effect.card ~= scored_card then
 				juice_card(effect.card)
@@ -382,16 +433,14 @@ end
 local localize_bonuses_hook = SMODS.localize_perma_bonuses
 function SMODS.localize_perma_bonuses(specific_vars, desc_nodes, ...)
 	localize_bonuses_hook(specific_vars, desc_nodes, ...)
-	for _, key in ipairs(Wallet.Currency.obj_buffer) do
-		for _, prefix in ipairs({"p_", "h_"}) do
-			if specific_vars and specific_vars[prefix .. key] then
-				localize({
-					type = "other",
-					key = prefix .. key,
-					nodes = desc_nodes,
-					vars = { Wallet.Currencies[key]:generate_ease_text(specific_vars[prefix .. key]) },
-				})
-			end
+	for _, key in ipairs(Wallet.ability_keys) do
+		if specific_vars and specific_vars[key.bonus] then
+			localize({
+				type = "other",
+				key = key.ability,
+				nodes = desc_nodes,
+				vars = { Wallet.Currencies[key.key]:generate_ease_text(specific_vars[key.bonus]) },
+			})
 		end
 	end
 end

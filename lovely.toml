@@ -1,0 +1,52 @@
+[manifest]
+version = "1.0.0"
+priority = 0
+dump_lua = true
+
+[[patches]]
+[patches.pattern]
+target = "card.lua"
+pattern = '''
+self.ability = self.ability or {}
+'''
+position = "before"
+payload = '''
+Wallet.populate_ability_keys(self, new_ability)
+'''
+match_indent = true
+
+[[patches]]
+[patches.pattern]
+target = '''=[SMODS _ "src/overrides.lua"]'''
+pattern = '''
+self.ability = self.ability or {}
+'''
+position = "before"
+payload = '''
+Wallet.populate_ability_keys(self, new_ability)
+'''
+match_indent = true
+
+[[patches]]
+[patches.pattern]
+target = "card.lua"
+pattern = '''
+elseif self.ability.set == 'Joker' then -- all remaining jokers
+'''
+position = "before"
+payload = '''
+Wallet.populate_loc_vars(self, loc_vars)
+'''
+match_indent = true
+
+[[patches]]
+[patches.pattern]
+target = "functions/common_events.lua"
+pattern = '''
+-- TARGET: main scoring on played cards
+'''
+position = "before"
+payload = '''
+Wallet.handle_ability_calc(ret, card)
+'''
+match_indent = true
