@@ -25,6 +25,9 @@ function Wallet.mod_buffer(currency, amt)
 	if currency == nil or currency == "$" or currency == "dollars" then
 		G.GAME.dollar_buffer = (G.GAME.dollar_buffer or 0) + amt
 	else
+		if not Wallet.Currencies[currency] then
+			error("No currency exists with key " .. currency)
+		end
 		G.GAME[currency .. "_buffer"] = (G.GAME[currency .. "_buffer"] or 0) + amt
 	end
 end
@@ -34,6 +37,9 @@ function Wallet.mod_dollars_buffer(amt)
 end
 
 function Wallet.reset_buffer(currency)
+	if not Wallet.Currencies[currency] then
+		error("No currency exists with key " .. currency)
+	end
 	G.E_MANAGER:add_event(Event({
 		func = function()
 			if currency == nil or currency == "$" or currency == "dollars" then
@@ -48,6 +54,11 @@ end
 
 function Wallet.reset_buffers(...)
 	local currencies = { ... }
+	for _, currency in ipairs(currencies) do
+		if not Wallet.Currencies[currency] then
+			error("No currency exists with key " .. currency)
+		end
+	end
 	G.E_MANAGER:add_event(Event({
 		func = function()
 			for _, currency in ipairs(currencies) do
