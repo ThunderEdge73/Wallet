@@ -88,7 +88,7 @@ end
 Wallet.Currencies = {}
 
 ---@param currency_obj Wallet.Currency
----@return function
+---@return fun(mod_amt: number, instant?: boolean)
 local function create_ease_func(currency_obj)
 	local key = currency_obj.key
 	return function(mod_amt, instant)
@@ -134,7 +134,7 @@ local function create_ease_func(currency_obj)
 			}))
 		end
 		if currency_obj.post_ease_func and not during_calc then
-			currency_obj:post_ease_func(final_amt)
+			currency_obj:post_ease_func(final_amt, instant)
 		end
 	end
 end

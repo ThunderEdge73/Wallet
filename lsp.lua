@@ -12,10 +12,10 @@
 ---@field currency_prefix? string The text that precedes the number whenever this currency is displayed. Defaults to "$".
 ---@field currency_suffix? string The text that follows the number whenever this currency is displayed. Defaults to "".
 ---@field pre_ease_func? fun(self: Wallet.Currency, mod: number, instant: boolean): number? Called before the amount of this currency changes. 
----@field post_ease_func? fun(self: Wallet.Currency, mod: number) Called after the amount of this currency changes. Use `SMODS.calculate_context` inside this function to handle contexts that should trigger in response to changes in this currency.
+---@field post_ease_func? fun(self: Wallet.Currency, mod: number, instant: boolean) Called after the amount of this currency changes. Use `SMODS.calculate_context` inside this function to handle contexts that should trigger in response to changes in this currency.
 ---@field custom_ease_func? fun(self: Wallet.Currency, mod: number) [ADVANCED] Define this to manually control how this currency changes and the associated animations.
 ---@field generate_ease_text? fun(self: Wallet.Currency, mod: number): string
----@field no_ui? boolean If true, this currency's amount will not be displayed.
+---@field no_ui? boolean [ADVANCED] If true, this currency's amount will not be displayed when hovering over your dollars. Use when you have a custom display UI for your currency.
 
 ---@overload fun(self: Wallet.Currency): Wallet.Currency
 Wallet.Currency = setmetatable({}, {
