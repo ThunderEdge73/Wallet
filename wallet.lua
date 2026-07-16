@@ -22,18 +22,14 @@ function Wallet.hook_currency_ease_func(key, before_func, after_func)
 end
 
 function Wallet.mod_buffer(currency, amt)
-	if currency == nil or currency == "$" or currency == "dollars" then
-		G.GAME.dollar_buffer = (G.GAME.dollar_buffer or 0) + amt
-	else
-		if not Wallet.Currencies[currency] then
-			error("No currency exists with key " .. currency)
-		end
-		G.GAME[currency .. "_buffer"] = (G.GAME[currency .. "_buffer"] or 0) + amt
+	if not Wallet.Currencies[currency] then
+		error("No currency exists with key " .. currency)
 	end
+	G.GAME[currency .. "_buffer"] = (G.GAME[currency .. "_buffer"] or 0) + amt
 end
 
 function Wallet.mod_dollars_buffer(amt)
-	Wallet.mod_buffer(nil, amt)
+	G.GAME.dollar_buffer = (G.GAME.dollar_buffer or 0) + amt
 end
 
 function Wallet.reset_buffer(currency)
@@ -42,11 +38,16 @@ function Wallet.reset_buffer(currency)
 	end
 	G.E_MANAGER:add_event(Event({
 		func = function()
-			if currency == nil or currency == "$" or currency == "dollars" then
-				G.GAME.dollar_buffer = 0
-			else
-				G.GAME[currency .. "_buffer"] = 0
-			end
+			G.GAME[currency .. "_buffer"] = 0
+			return true
+		end,
+	}))
+end
+
+function Wallet.reset_dollars_buffer()
+	G.E_MANAGER:add_event(Event({
+		func = function()
+			G.GAME.dollar_buffer = 0
 			return true
 		end,
 	}))
