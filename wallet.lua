@@ -29,6 +29,10 @@ function Wallet.mod_buffer(currency, amt)
 	end
 end
 
+function Wallet.mod_dollars_buffer(amt)
+	Wallet.mod_buffer(nil, amt)
+end
+
 function Wallet.reset_buffer(currency)
 	G.E_MANAGER:add_event(Event({
 		func = function()
@@ -38,6 +42,22 @@ function Wallet.reset_buffer(currency)
 				G.GAME[currency .. "_buffer"] = 0
 			end
 			return true
+		end,
+	}))
+end
+
+function Wallet.reset_buffers(...)
+	local currencies = { ... }
+	G.E_MANAGER:add_event(Event({
+		func = function()
+			for _, currency in ipairs(currencies) do
+				if currency == "$" or currency == "dollars" then
+					G.GAME.dollar_buffer = 0
+				else
+					G.GAME[currency .. "_buffer"] = 0
+				end
+				return true
+			end
 		end,
 	}))
 end
