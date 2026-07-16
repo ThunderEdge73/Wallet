@@ -283,6 +283,7 @@ function Wallet.currency_uidef(key)
 					colour = temp_col,
 					emboss = 0.05,
 					r = 0.1,
+					id = key .. "_text_UI"
 				},
 				nodes = {
 					{
