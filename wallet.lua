@@ -100,7 +100,7 @@ local function create_ease_func(currency_obj)
 			end
 		end
 		local during_calc = Wallet.ease_currency_calc
-		local final_amt = currency_obj.pre_ease_func and currency_obj:pre_ease_func(mod_amt) or mod_amt
+		local final_amt = currency_obj.pre_ease_func and currency_obj:pre_ease_func(mod_amt, instant) or mod_amt
 		Wallet.ease_currency_calc = final_amt
 		if instant then
 			_mod(final_amt)

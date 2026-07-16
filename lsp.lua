@@ -11,7 +11,7 @@
 ---@field scoring_sfx_key? string The string passed into play_sound after this currency's amount changes as a result of calculation. Defaults to "coin3".
 ---@field currency_prefix? string The text that precedes the number whenever this currency is displayed. Defaults to "$".
 ---@field currency_suffix? string The text that follows the number whenever this currency is displayed. Defaults to "".
----@field pre_ease_func? fun(self: Wallet.Currency, mod: number): number? Called before the amount of this currency changes. 
+---@field pre_ease_func? fun(self: Wallet.Currency, mod: number, instant: boolean): number? Called before the amount of this currency changes. 
 ---@field post_ease_func? fun(self: Wallet.Currency, mod: number) Called after the amount of this currency changes. Use `SMODS.calculate_context` inside this function to handle contexts that should trigger in response to changes in this currency.
 ---@field custom_ease_func? fun(self: Wallet.Currency, mod: number) [ADVANCED] Define this to manually control how this currency changes and the associated animations.
 ---@field generate_ease_text? fun(self: Wallet.Currency, mod: number): string
