@@ -428,15 +428,24 @@ function Game:update(dt, ...)
 	if G.HUD then
 		local collides = G.HUD:get_UIE_by_ID("dollar_text_UI").parent.parent.parent:collides_with_point(G.CURSOR.T)
 		if collides and not G.wal_money_info and not G.SETTINGS.paused then
-			G.wal_money_info = UIBox({
-				definition = Wallet.generate_currency_hover_UIBox(),
-				config = {
-					major = G.HUD:get_UIE_by_ID("dollar_text_UI").parent.parent.parent,
-					align = "tm",
-					offset = { x = 0, y = -0.15 },
-				},
-				instance_type = "CARD",
-			})
+			local should_show_ui = false
+			for _, key in ipairs(Wallet.Currency.obj_buffer) do
+				if not Wallet.Currencies[key].no_ui then
+					should_show_ui = true
+					break
+				end
+			end
+			if should_show_ui then
+				G.wal_money_info = UIBox({
+					definition = Wallet.generate_currency_hover_UIBox(),
+					config = {
+						major = G.HUD:get_UIE_by_ID("dollar_text_UI").parent.parent.parent,
+						align = "tm",
+						offset = { x = 0, y = -0.15 },
+					},
+					instance_type = "CARD",
+				})
+			end
 		elseif G.wal_money_info and (not collides or G.SETTINGS.paused) then
 			G.wal_money_info:remove()
 			G.wal_money_info = nil
