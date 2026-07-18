@@ -3,23 +3,7 @@ Wallet = {}
 Wallet.ability_keys = {}
 Wallet.ease_currency_funcs = {}
 
--- for convenience
-function Wallet.hook_currency_ease_func(key, before_func, after_func)
-	if not Wallet.ease_currency_funcs[key] then
-		error("Cannot find function to hook")
-	end
-	local ease_func_hook = Wallet.ease_currency_funcs[key]
-	Wallet.ease_currency_funcs[key] = function(mod, instant, ...)
-		local new_mod = mod
-		if before_func then
-			new_mod = before_func(mod, instant, ...)
-		end
-		ease_func_hook(new_mod, instant, ...)
-		if after_func then
-			after_func(new_mod, instant, ...)
-		end
-	end
-end
+--#region Developer-facing Utils
 
 function Wallet.mod_buffer(currency, amt)
 	if not Wallet.Currencies[currency] then
@@ -74,6 +58,10 @@ function Wallet.reset_buffers(...)
 	}))
 end
 
+--#endregion
+
+--#region Internals
+
 function Wallet.populate_ability_keys(card, new_ability)
 	for _, key in ipairs(Wallet.ability_keys) do
 		new_ability[key.perma] = card.ability and card.ability[key.perma] or 0
@@ -83,16 +71,6 @@ end
 function Wallet.populate_loc_vars(card, vars)
 	for _, key in ipairs(Wallet.ability_keys) do
 		vars[key.bonus] = (card.ability[key.perma] or 0) ~= 0 and card.ability[key.perma] or nil
-	end
-end
-
-function Wallet.handle_ability_calc(ret, card)
-	for _, key in ipairs(Wallet.ability_keys) do
-		if (card.ability[key.perma] or 0) ~= 0 then
-			Wallet.mod_buffer(key.key, card.ability[key.perma])
-			ret.playing_card[key.key] = card.ability[key.perma]
-			Wallet.reset_buffer(key.key)
-		end
 	end
 end
 
@@ -193,7 +171,11 @@ Wallet.Currency = SMODS.GameObject:extend({
 	obj_table = Wallet.Currencies,
 	starting_amount = 0,
 	generate_ease_text = function(self, amt)
-		return (amt >= 0 and "+" or "-") .. self.currency_prefix .. tostring(math.abs(amt)) .. self.currency_suffix
+		local ret = (amt >= 0 and "+" or "-") .. self.currency_prefix .. tostring(math.abs(amt)) .. self.currency_suffix
+		if self.currency_label then
+			ret = ret .. " " .. localize(self.currency_label)
+		end
+		return ret
 	end,
 	colour = G.C.MONEY,
 	decrease_colour = G.C.RED,
@@ -201,13 +183,346 @@ Wallet.Currency = SMODS.GameObject:extend({
 	currency_suffix = "",
 	sfx_key = "coin1",
 	scoring_sfx_key = "coin3",
+	currency_label = nil,
 })
+
+--#endregion
+
+--#region Run Start
 
 function Wallet.init_currencies()
 	for key, currency in pairs(Wallet.Currencies) do
 		-- in case this function is called more than once at start of run
 		G.GAME[key] = G.GAME[key] or currency.starting_amount
 		G.GAME[key .. "_buffer"] = 0
+		G.GAME[key .. "_bankrupt_at"] = 0
+	end
+end
+
+SMODS.current_mod.reset_game_globals = function(run_start)
+	if run_start then
+		Wallet.init_currencies()
+	end
+end
+
+--#endregion
+
+--#region Custom Currency Costs
+
+function Wallet.has_custom_currency_cost(card)
+	if not card then
+		return false
+	end
+	return card.config.center.currency_cost and Wallet.Currencies[card.config.center.currency_cost]
+end
+
+function Wallet.get_custom_currency_cost(card)
+	if not Wallet.has_custom_currency_cost(card) then
+		return 0
+	end
+	return card[card.config.center.currency_cost .. "_cost"]
+end
+
+function Wallet.get_custom_currency_sell_cost(card)
+	if not Wallet.has_custom_currency_cost(card) then
+		return 0
+	end
+	return card[card.config.center.currency_cost .. "_sell_cost"]
+end
+
+local can_buy_hook = G.FUNCS.can_buy
+function G.FUNCS.can_buy(e)
+	can_buy_hook(e)
+	local card = e.config.ref_table
+	if Wallet.has_custom_currency_cost(card) then
+		if
+			(
+				Wallet.get_custom_currency_cost(card)
+				> G.GAME[card.config.center.currency_cost]
+					- G.GAME[card.config.center.currency_cost .. "_bankrupt_at"]
+			) and (Wallet.get_custom_currency_cost(card) > 0)
+		then
+			e.config.colour = G.C.UI.BACKGROUND_INACTIVE
+			e.config.button = nil
+		else
+			e.config.colour = G.C.ORANGE
+			e.config.button = "buy_from_shop"
+		end
+	end
+end
+
+local can_buy_and_use_hook = G.FUNCS.can_buy_and_use
+function G.FUNCS.can_buy_and_use(e)
+	can_buy_and_use_hook(e)
+	local card = e.config.ref_table
+	if Wallet.has_custom_currency_cost(card) then
+		if
+			(
+				(
+					Wallet.get_custom_currency_cost(card)
+					> G.GAME[card.config.center.currency_cost]
+						- G.GAME[card.config.center.currency_cost .. "_bankrupt_at"]
+				) and (Wallet.get_custom_currency_cost(card) > 0)
+			) or (not e.config.ref_table:can_use_consumeable())
+		then
+			e.UIBox.states.visible = false
+			e.config.colour = G.C.UI.BACKGROUND_INACTIVE
+			e.config.button = nil
+		else
+			if e.config.ref_table.highlighted then
+				e.UIBox.states.visible = true
+			end
+			e.config.colour = G.C.SECONDARY_SET.Voucher
+			e.config.button = "buy_from_shop"
+		end
+	end
+end
+
+local can_redeem_hook = G.FUNCS.can_redeem
+function G.FUNCS.can_redeem(e)
+	can_redeem_hook(e)
+	local card = e.config.ref_table
+	if Wallet.has_custom_currency_cost(card) then
+		if
+			(
+				Wallet.get_custom_currency_cost(card)
+				> G.GAME[card.config.center.currency_cost]
+					- G.GAME[card.config.center.currency_cost .. "_bankrupt_at"]
+			) and (Wallet.get_custom_currency_cost(card) > 0)
+		then
+			e.config.colour = G.C.UI.BACKGROUND_INACTIVE
+			e.config.button = nil
+		else
+			e.config.colour = G.C.GREEN
+			e.config.button = "use_card"
+		end
+	end
+end
+
+local can_open_hook = G.FUNCS.can_open
+function G.FUNCS.can_open(e)
+	can_open_hook(e)
+	local card = e.config.ref_table
+	if Wallet.has_custom_currency_cost(card) then
+		if
+			(
+				Wallet.get_custom_currency_cost(card)
+				> G.GAME[card.config.center.currency_cost]
+					- G.GAME[card.config.center.currency_cost .. "_bankrupt_at"]
+			) and (Wallet.get_custom_currency_cost(card) > 0)
+		then
+			e.config.colour = G.C.UI.BACKGROUND_INACTIVE
+			e.config.button = nil
+		else
+			e.config.colour = G.C.GREEN
+			e.config.button = "use_card"
+		end
+	end
+end
+
+local set_sell_value_hook = Card.set_sell_value
+function Card:set_sell_value()
+	set_sell_value_hook(self)
+	if Wallet.has_custom_currency_cost(self) then
+		self.sell_cost = 0
+		self[self.config.center.currency_cost .. "_sell_cost"] = math.max(
+			1,
+			math.floor(self[self.config.center.currency_cost .. "_cost"] / 2)
+		) + (self.ability[self.config.center.currency_cost .. "_extra_value"] or 0)
+	end
+end
+
+local set_cost_value_hook = Card.set_cost_value
+function Card:set_cost_value()
+	set_cost_value_hook(self)
+	if Wallet.has_custom_currency_cost(self) then
+		local obj = Wallet.Currencies[self.config.center.currency_cost]
+		self.cost = 0
+		self[self.config.center.currency_cost .. "_cost"] = self.config.center.cost
+		if obj.modify_cost then
+			self[self.config.center.currency_cost .. "_cost"] = obj:modify_cost(self, self.config.center.cost)
+				or self.config.center.cost
+		end
+	end
+end
+
+function Wallet.get_edition_extra_cost(card)
+	if card.edition then
+		for k, v in pairs(G.P_CENTER_POOLS.Edition) do
+			if card.edition[v.key:sub(3)] then
+				if v.extra_cost then
+					return v.extra_cost
+				end
+			end
+		end
+	end
+	return 0
+end
+
+function Wallet.generate_custom_sell_button(card)
+	if not card.config.center.currency_cost or not Wallet.Currencies[card.config.center.currency_cost] then
+		return
+	end
+	local obj = Wallet.Currencies[card.config.center.currency_cost]
+	return {
+		n = G.UIT.C,
+		config = { align = "cr" },
+		nodes = {
+			{
+				n = G.UIT.C,
+				config = {
+					ref_table = card,
+					align = "cr",
+					padding = 0.1,
+					r = 0.08,
+					minw = 1.25,
+					hover = true,
+					shadow = true,
+					colour = G.C.UI.BACKGROUND_INACTIVE,
+					one_press = true,
+					button = "sell_card",
+					func = "can_sell_card",
+				},
+				nodes = {
+					{ n = G.UIT.B, config = { w = 0.1, h = 0.6 } },
+					{
+						n = G.UIT.C,
+						config = { align = "tm" },
+						nodes = {
+							{
+								n = G.UIT.R,
+								config = { align = "cm", maxw = 1.25 },
+								nodes = {
+									{
+										n = G.UIT.T,
+										config = {
+											text = localize("b_sell"),
+											colour = G.C.UI.TEXT_LIGHT,
+											scale = 0.4,
+											shadow = true,
+										},
+									},
+								},
+							},
+							{
+								n = G.UIT.R,
+								config = { align = "cm" },
+								nodes = {
+									obj.currency_prefix and {
+										n = G.UIT.T,
+										config = {
+											text = obj.currency_prefix,
+											colour = G.C.WHITE,
+											scale = 0.4,
+											shadow = true,
+											font = obj.font and SMODS.Fonts[obj.font],
+										},
+									},
+									{
+										n = G.UIT.T,
+										config = {
+											ref_table = card,
+											ref_value = "sell_cost_label",
+											colour = G.C.WHITE,
+											scale = 0.55,
+											shadow = true,
+										},
+									},
+									(obj.currency_suffix or obj.currency_label) and {
+										n = G.UIT.T,
+										config = {
+											text = obj.currency_suffix
+												.. (obj.currency_label and localize(obj.currency_label) or ""),
+											colour = G.C.WHITE,
+											scale = 0.4,
+											shadow = true,
+											font = obj.font and SMODS.Fonts[obj.font],
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+end
+
+function Wallet.generate_custom_cost_display(card)
+	if not card.config.center.currency_cost or not Wallet.Currencies[card.config.center.currency_cost] then
+		return
+	end
+	local obj = Wallet.Currencies[card.config.center.currency_cost]
+	local prefix = obj.currency_prefix
+	local suffix = obj.currency_suffix
+	if obj.currency_label then
+		suffix = suffix .. " " .. localize(obj.currency_label)
+	else
+	end
+	return {
+		n = G.UIT.ROOT,
+		config = {
+			minw = 0.6,
+			align = "tm",
+			colour = darken(G.C.BLACK, 0.2),
+			shadow = true,
+			r = 0.05,
+			padding = 0.05,
+			minh = 1,
+		},
+		nodes = {
+			{
+				n = G.UIT.R,
+				config = {
+					align = "cm",
+					colour = lighten(G.C.BLACK, 0.1),
+					r = 0.1,
+					minw = 1,
+					minh = 0.55,
+					emboss = 0.05,
+					padding = 0.03,
+				},
+				nodes = {
+					{
+						n = G.UIT.O,
+						config = {
+							object = DynaText({
+								string = {
+									{
+										prefix = prefix,
+										ref_table = card,
+										ref_value = card.config.center.currency_cost .. "_cost",
+										suffix = suffix,
+									},
+								},
+								colours = { obj.colour },
+								shadow = true,
+								silent = true,
+								bump = true,
+								pop_in = 0,
+								scale = 0.5,
+								font = obj.font and SMODS.Fonts[obj.font],
+							}),
+						},
+					},
+				},
+			},
+		},
+	}
+end
+
+--#endregion
+
+--#region Calculation
+
+function Wallet.handle_ability_calc(ret, card)
+	for _, key in ipairs(Wallet.ability_keys) do
+		if (card.ability[key.perma] or 0) ~= 0 then
+			Wallet.mod_buffer(key.key, card.ability[key.perma])
+			ret.playing_card[key.key] = card.ability[key.perma]
+			Wallet.reset_buffer(key.key)
+		end
 	end
 end
 
@@ -263,12 +578,21 @@ function SMODS.calculate_individual_effect(effect, scored_card, key, amount, fro
 	return ret
 end
 
+--#endregion
+
+--#region UI
+
 function Wallet.currency_uidef(key)
 	local obj = Wallet.Currencies[key]
 	local scale = 0.4
 	local spacing = 0.13
 	local temp_col = G.C.DYN_UI.BOSS_MAIN
 	local temp_col2 = G.C.DYN_UI.BOSS_DARK
+	local prefix = obj.currency_prefix
+	local suffix = obj.currency_suffix
+	if obj.currency_label then
+		suffix = suffix .. " " .. localize(obj.currency_label)
+	end
 	return {
 		n = G.UIT.R,
 		config = { align = "cm" },
@@ -283,7 +607,7 @@ function Wallet.currency_uidef(key)
 					colour = temp_col,
 					emboss = 0.05,
 					r = 0.1,
-					id = key .. "_text_UI"
+					id = key .. "_text_UI",
 				},
 				nodes = {
 					{
@@ -308,8 +632,8 @@ function Wallet.currency_uidef(key)
 													{
 														ref_table = G.GAME,
 														ref_value = key,
-														prefix = obj.currency_prefix,
-														suffix = obj.currency_suffix,
+														prefix = prefix,
+														suffix = suffix,
 													},
 												},
 												scale_function = function()
@@ -466,12 +790,6 @@ function Game:update(dt, ...)
 	end
 end
 
-SMODS.current_mod.reset_game_globals = function(run_start)
-	if run_start then
-		Wallet.init_currencies()
-	end
-end
-
 local localize_bonuses_hook = SMODS.localize_perma_bonuses
 function SMODS.localize_perma_bonuses(specific_vars, desc_nodes, ...)
 	localize_bonuses_hook(specific_vars, desc_nodes, ...)
@@ -486,3 +804,38 @@ function SMODS.localize_perma_bonuses(specific_vars, desc_nodes, ...)
 		end
 	end
 end
+
+--#endregion
+
+--#region Cashout
+
+-- Wallet.cashout_currency_amts = {}
+
+-- function Wallet.add_to_cashout(key, amt)
+-- 	local entry = {
+-- 		key = key,
+-- 		amt = amt,
+-- 	}
+-- 	local found = false
+-- 	for _, currency in ipairs(Wallet.cashout_currency_amts) do
+-- 		if currency.key == key then
+-- 			currency.amt = currency.amt + amt
+-- 			found = true
+-- 			break
+-- 		end
+-- 	end
+-- 	if not found then
+-- 		Wallet.cashout_currency_amts[#Wallet.cashout_currency_amts + 1] = entry
+-- 	end
+-- end
+
+-- function Wallet.calc_currency_bonus(obj)
+-- 	if not type(obj.calc_currency_bonus) == "function" then
+-- 		return
+-- 	end
+-- 	local res = obj:calc_currency_bonus()
+-- 	for _, key in ipairs(Wallet.Currency.obj_buffer) do
+-- 		if res[key] then
+-- 		end
+-- 	end
+-- end

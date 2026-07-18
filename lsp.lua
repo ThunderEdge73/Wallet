@@ -11,11 +11,13 @@
 ---@field scoring_sfx_key? string The string passed into play_sound after this currency's amount changes as a result of calculation. Defaults to "coin3".
 ---@field currency_prefix? string The text that precedes the number whenever this currency is displayed. Defaults to "$".
 ---@field currency_suffix? string The text that follows the number whenever this currency is displayed. Defaults to "".
+---@field currency_label? string A key in misc.dictionary for use with localizing this currency's label.
 ---@field pre_ease_func? fun(self: Wallet.Currency, mod: number, instant: boolean): number? Called before the amount of this currency changes. 
 ---@field post_ease_func? fun(self: Wallet.Currency, mod: number, instant: boolean) Called after the amount of this currency changes. Use `SMODS.calculate_context` inside this function to handle contexts that should trigger in response to changes in this currency.
 ---@field custom_ease_func? fun(self: Wallet.Currency, mod: number) [ADVANCED] Define this to manually control how this currency changes and the associated animations.
 ---@field generate_ease_text? fun(self: Wallet.Currency, mod: number): string
 ---@field no_ui? boolean [ADVANCED] If true, this currency's amount will not be displayed when hovering over your dollars. Use when you have a custom display UI for your currency.
+---@field calc_cost? fun(self: Wallet.Currency, card: Card, base_cost: number): number? Called when calculating a card's cost. Return a number to set the card's cost to that number.
 
 ---@overload fun(self: Wallet.Currency): Wallet.Currency
 Wallet.Currency = setmetatable({}, {

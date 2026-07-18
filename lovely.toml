@@ -3,6 +3,8 @@ version = "1.0.0"
 priority = 0
 dump_lua = true
 
+# Localization patches
+
 [[patches]]
 [patches.pattern]
 target = "card.lua"
@@ -39,6 +41,8 @@ Wallet.populate_loc_vars(self, loc_vars)
 '''
 match_indent = true
 
+# Calculation patches
+
 [[patches]]
 [patches.pattern]
 target = "functions/common_events.lua"
@@ -48,5 +52,121 @@ pattern = '''
 position = "before"
 payload = '''
 Wallet.handle_ability_calc(ret, card)
+'''
+match_indent = true
+
+# Custom currency cost patches
+
+[[patches]]
+[patches.pattern]
+target = "functions/button_callbacks.lua" # G.FUNCS.buy_from_shop
+pattern = '''
+if c1.cost ~= 0 then
+'''
+position = "at"
+payload = '''
+if Wallet.has_custom_currency_cost(c1) and Wallet.get_custom_currency_cost(c1) ~= 0 then
+    Wallet.ease_currency_funcs[c1.config.center.currency_cost](-Wallet.get_custom_currency_cost(c1))
+elseif c1.cost ~= 0 then
+'''
+match_indent = true
+
+[[patches]]
+[patches.pattern]
+target = "functions/button_callbacks.lua" # G.FUNCS.buy_from_shop
+pattern = '''
+inc_career_stat('c_shop_dollars_spent', c1.cost)
+'''
+position = "at"
+payload = '''
+if not Wallet.has_custom_currency_cost(c1) then
+    inc_career_stat('c_shop_dollars_spent', c1.cost)
+end
+'''
+match_indent = true
+
+[[patches]]
+[patches.pattern]
+target = "card.lua" # Card:sell_card
+pattern = '''
+ease_dollars(self.sell_cost)
+'''
+position = "at"
+payload = '''
+if Wallet.has_custom_currency_cost(self) then
+    Wallet.ease_currency_funcs[self.config.center.currency_cost](Wallet.get_custom_currency_sell_cost(self))
+else
+    ease_dollars(self.sell_cost)
+end
+'''
+match_indent = true
+
+[[patches]]
+[patches.pattern]
+target = "card.lua" # Card:set_cost
+pattern = '''
+self.sell_cost_label = self.facing == 'back' and '?' or self.sell_cost
+'''
+position = "after"
+payload = '''
+if Wallet.has_custom_currency_cost(self) then
+    self.sell_cost_label = self.facing == 'back' and '?' or Wallet.get_custom_currency_sell_cost(self)
+end
+'''
+match_indent = true
+
+[[patches]]
+[patches.pattern]
+target = "card.lua" # Card:open
+pattern = '''
+if self.cost > 0 then
+'''
+position = "at"
+payload = '''
+if Wallet.has_custom_currency_cost(self) and Wallet.get_custom_currency_cost(self) > 0 then
+    G.E_MANAGER:add_event(Event({trigger = 'after', delay = 0.2, func = function()
+        self:juice_up()
+        return true end }))
+    Wallet.ease_currency_funcs[self.config.center.currency_cost](-Wallet.get_custom_currency_cost(self))
+elseif self.cost > 0 then
+'''
+match_indent = true
+
+[[patches]]
+[patches.pattern]
+target = "card.lua" # Card:redeem
+pattern = '''
+if self.cost ~= 0 then
+'''
+position = "at"
+payload = '''
+if Wallet.has_custom_currency_cost(self) and Wallet.get_custom_currency_cost(self) ~= 0 then
+    Wallet.ease_currency_funcs[self.config.center.currency_cost](-Wallet.get_custom_currency_cost(self))
+elseif self.cost ~= 0 then
+'''
+match_indent = true
+
+[[patches]]
+[patches.pattern]
+target = "functions/UI_definitions.lua" # G.UIDEF.use_and_sell_buttons
+pattern = '''
+if card.ability.consumeable and card.area == G.pack_cards and G.pack_cards and booster_obj then
+'''
+position = "before"
+payload = '''
+sell = Wallet.generate_custom_sell_button(card) or sell
+'''
+match_indent = true
+
+
+[[patches]]
+[patches.pattern]
+target = "functions/UI_definitions.lua" # create_shop_card_ui
+pattern = '''
+local t2 = card.ability.set == 'Voucher' and {
+'''
+position = "before"
+payload = '''
+t1 = Wallet.generate_custom_cost_display(card) or t1
 '''
 match_indent = true
