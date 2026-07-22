@@ -103,6 +103,7 @@ This class has **no** class prefix.
 	- `currency_label = nil` Set to a localization key within `misc.dictionary` to have the corresponding text appear the suffix whenever this currency is displayed. Useful when you don't have a dedicated symbol for your currency.
 	- `sfx_key = "coin1"` The sound effect played after any changes in this currency.
 	- `scoring_sfx_key = "coin3"` This sound effect played after any changes in this currency as a result of calculation.
+	- `echo_sfx_key = "coin6"` This sound effect is played during cashout and is intended to have a more echo-y effect.
 	- `no_ui = nil` **_(ADVANCED)_** If set to true, will prevent this currency from showing up when hovering over your dollars. You should define your own visuals if this is set to true.
 
 ### Methods

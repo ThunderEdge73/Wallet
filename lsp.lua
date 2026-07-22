@@ -8,6 +8,7 @@
 ---@field colour? table The primary colour associated with this currency. Defaults to G.C.MONEY.
 ---@field decrease_colour? table The colour associated with decreases in this currency. Defaults to G.C.RED.
 ---@field sfx_key? string The string passed into play_sound whenever this currency's amount changes. Defaults to "coin1".
+---@field echo_sfx_key? string The echo sound effect played during cashout. Defaults to "coin6".
 ---@field scoring_sfx_key? string The string passed into play_sound after this currency's amount changes as a result of calculation. Defaults to "coin3".
 ---@field currency_prefix? string The text that precedes the number whenever this currency is displayed. Defaults to "$".
 ---@field currency_suffix? string The text that follows the number whenever this currency is displayed. Defaults to "".
@@ -25,3 +26,12 @@ Wallet.Currency = setmetatable({}, {
         return self
     end
 })
+
+---@class SMODS.Joker
+---@field calc_currency_bonus? fun(self: SMODS.Joker, card: Card): table?
+
+---@class SMODS.Consumable
+---@field calc_currency_bonus? fun(self: SMODS.Consumable, card: Card): table?
+
+---@class Mod
+---@field calc_currency_bonus? fun(self: Mod, card: Card): table?

@@ -183,6 +183,7 @@ Wallet.Currency = SMODS.GameObject:extend({
 	currency_suffix = "",
 	sfx_key = "coin1",
 	scoring_sfx_key = "coin3",
+	echo_sfx_key = "coin6",
 	currency_label = nil,
 })
 
@@ -238,8 +239,10 @@ function G.FUNCS.can_buy(e)
 		if
 			(
 				Wallet.get_custom_currency_cost(card)
-				> G.GAME[card.config.center.currency_cost]
+				> (
+					G.GAME[card.config.center.currency_cost]
 					- G.GAME[card.config.center.currency_cost .. "_bankrupt_at"]
+				)
 			) and (Wallet.get_custom_currency_cost(card) > 0)
 		then
 			e.config.colour = G.C.UI.BACKGROUND_INACTIVE
@@ -512,6 +515,28 @@ function Wallet.generate_custom_cost_display(card)
 	}
 end
 
+local card_save_hook = Card.save
+function Card:save(...)
+	local ret = card_save_hook(self, ...)
+	if Wallet.has_custom_currency_cost(self) then
+		ret["custom_currency_cost"] = Wallet.get_custom_currency_cost(self)
+		ret["custom_currency_sell_cost"] = Wallet.get_custom_currency_sell_cost(self)
+		ret["custom_currency_extra_value"] = self.ability[self.config.center.currency_cost .. "_extra_value"] or 0
+	end
+	return ret
+end
+
+local card_load_hook = Card.load
+function Card:load(cardTable, other_card, ...)
+	local ret = card_load_hook(self, cardTable, other_card, ...)
+	if Wallet.has_custom_currency_cost(self) then
+		self[self.config.center.currency_cost .. "_cost"] = cardTable.custom_currency_cost
+		self[self.config.center.currency_cost .. "_sell_cost"] = cardTable.custom_currency_sell_cost
+		self[self.config.center.currency_cost .. "_extra_value"] = cardTable.custom_currency_extra_value
+	end
+	return ret
+end
+
 --#endregion
 
 --#region Calculation
@@ -527,8 +552,8 @@ function Wallet.handle_ability_calc(ret, card)
 end
 
 local calc_individual_effect_hook = SMODS.calculate_individual_effect
-function SMODS.calculate_individual_effect(effect, scored_card, key, amount, from_edition)
-	local ret = calc_individual_effect_hook(effect, scored_card, key, amount, from_edition)
+function SMODS.calculate_individual_effect(effect, scored_card, key, amount, from_edition, ...)
+	local ret = calc_individual_effect_hook(effect, scored_card, key, amount, from_edition, ...)
 	for _, k in pairs(Wallet.Currency.obj_buffer) do
 		local currency = Wallet.Currencies[k]
 		if key == currency.key or key == "p_" .. currency.key or key == "h_" .. currency.key then
@@ -809,33 +834,739 @@ end
 
 --#region Cashout
 
--- Wallet.cashout_currency_amts = {}
+Wallet.cashout_currency_amts = {}
 
--- function Wallet.add_to_cashout(key, amt)
--- 	local entry = {
--- 		key = key,
--- 		amt = amt,
--- 	}
--- 	local found = false
--- 	for _, currency in ipairs(Wallet.cashout_currency_amts) do
--- 		if currency.key == key then
--- 			currency.amt = currency.amt + amt
--- 			found = true
--- 			break
--- 		end
--- 	end
--- 	if not found then
--- 		Wallet.cashout_currency_amts[#Wallet.cashout_currency_amts + 1] = entry
--- 	end
--- end
+local get_mods_scoring_targets_hook = SMODS.get_mods_scoring_targets
+function SMODS.get_mods_scoring_targets(_context, ...)
+	local ret = get_mods_scoring_targets_hook(_context, ...)
+	if _context == "calc_dollar_bonus" then
+		ret = SMODS.merge_lists({ ret, SMODS.get_mods_scoring_targets("calc_currency_bonus", ...) })
+	end
+	return ret
+end
 
--- function Wallet.calc_currency_bonus(obj)
--- 	if not type(obj.calc_currency_bonus) == "function" then
--- 		return
--- 	end
--- 	local res = obj:calc_currency_bonus()
--- 	for _, key in ipairs(Wallet.Currency.obj_buffer) do
--- 		if res[key] then
--- 		end
--- 	end
--- end
+function Wallet.add_to_cashout(key, amt)
+	local entry = {
+		key = key,
+		amt = amt,
+	}
+	local found = false
+	for _, currency in ipairs(Wallet.cashout_currency_amts) do
+		if currency.key == key then
+			currency.amt = currency.amt + amt
+			found = true
+			break
+		end
+	end
+	if not found then
+		Wallet.cashout_currency_amts[#Wallet.cashout_currency_amts + 1] = entry
+	end
+end
+
+function Wallet.process_cashout()
+	for _, entry in ipairs(Wallet.cashout_currency_amts) do
+		Wallet.ease_currency_funcs[entry.key](entry.amt)
+	end
+end
+
+function Card:calc_currency_bonus()
+	if not self:can_calculate() then
+		return
+	end
+	local obj = self.config.center
+	if obj.calc_currency_bonus and type(obj.calc_currency_bonus) == "function" then
+		return obj:calc_currency_bonus(self)
+	end
+end
+
+function Wallet.calc_currency_bonus(obj, i, pitch)
+	local n = i
+	local current_pitch = pitch
+	if type(obj.calc_currency_bonus) ~= "function" then
+		return n, current_pitch
+	end
+	local res = obj:calc_currency_bonus()
+	if res then
+		if obj.is and obj:is(Card) then
+			for _, key in ipairs(Wallet.Currency.obj_buffer) do
+				if res[key] then
+					local res_args = res[key][2] or {}
+					if not res_args.no_eval_row then
+						n = n + 1
+						Wallet.add_custom_round_eval_row({
+							currency_key = key,
+							dollars = res[key][1],
+							bonus = true,
+							name = "joker" .. n,
+							pitch = current_pitch,
+							card = obj,
+							loc_opts = res_args,
+						})
+						current_pitch = current_pitch + 0.06
+					end
+					Wallet.add_to_cashout(key, res[key][1])
+				end
+			end
+		else
+			for _, key in ipairs(Wallet.Currency.obj_buffer) do
+				if res[key] then
+					local res_args = res[key][2] or {}
+					if not res_args.no_eval_row then
+						if res_args.text then
+							name = res_args.text
+						elseif (res_args.set or obj.set) and (res_args.key or obj.key) then
+							if res_args.set == "Challenge" or (not res_args.set and obj.set == "Challenge") then
+								name = localize(res_args.key or obj.key, "challenge_names")
+							elseif
+								(res_args.set == "Mod" or (not res_args.set and obj.set == "Mod"))
+								and not (G.localization.descriptions.Mod or {})[res_args.key or obj.key]
+							then
+								name = (SMODS.Mods[res_args.key or obj.key] or {}).name
+							else
+								name = localize({
+									type = "name_text",
+									set = res_args.set or obj.set,
+									key = res_args.key or obj.key,
+								})
+							end
+						end
+						n = n + 1
+						Wallet.add_custom_round_eval_row({
+							dollars = res[key][1],
+							bonus = true,
+							name = "custom_individual" .. i,
+							pitch = pitch,
+							text_colour = res_args.text_colour or G.C.FILTER,
+							text = name or "ERROR",
+							text_scale = res_args.scale or 0.6,
+							currency_key = key,
+						})
+						current_pitch = current_pitch + 0.06
+					end
+					Wallet.add_to_cashout(key, res[key][1])
+				end
+			end
+		end
+	end
+	return n, current_pitch
+end
+
+local round_eval_row_hook = add_round_eval_row
+function add_round_eval_row(config, ...)
+	if config.currency_key and Wallet.Currencies[config.currency_key] then
+		Wallet.add_custom_round_eval_row(config)
+	else
+		round_eval_row_hook(config, ...)
+	end
+end
+
+function Wallet.add_custom_round_eval_row(config)
+	local config = config or {}
+	if not config.currency_key then
+		error("No custom currency")
+	end
+	local currency_obj = Wallet.Currencies[config.currency_key]
+	local width = G.round_eval.T.w - 0.51
+	local num_dollars = config.dollars or 1
+	local scale = 0.9
+
+	if config.name ~= "bottom" then
+		total_cashout_rows = (total_cashout_rows or 0) + 1
+		if total_cashout_rows > 7 then
+			return
+		end
+		if config.name ~= "blind1" then
+			if not G.round_eval.divider_added then
+				G.E_MANAGER:add_event(Event({
+					trigger = "after",
+					delay = 0.25,
+					func = function()
+						local spacer = {
+							n = G.UIT.R,
+							config = { align = "cm", minw = width },
+							nodes = {
+								{
+									n = G.UIT.O,
+									config = {
+										object = DynaText({
+											string = { "......................................" },
+											colours = { G.C.WHITE },
+											shadow = true,
+											float = true,
+											y_offset = -30,
+											scale = 0.45,
+											spacing = 13.5,
+											font = G.LANGUAGES["en-us"].font,
+											pop_in = 0,
+										}),
+									},
+								},
+							},
+						}
+						G.round_eval:add_child(
+							spacer,
+							G.round_eval:get_UIE_by_ID(config.bonus and "bonus_round_eval" or "base_round_eval")
+						)
+						return true
+					end,
+				}))
+				delay(0.6)
+				G.round_eval.divider_added = true
+			end
+		else
+			delay(0.2)
+		end
+
+		delay(0.2)
+
+		G.E_MANAGER:add_event(Event({
+			trigger = "before",
+			delay = 0.5,
+			func = function()
+				--Add the far left text and context first:
+				local left_text = {}
+				if config.name == "blind1" then
+					local stake_sprite = get_stake_sprite(G.GAME.stake or 1, 0.5)
+					local obj = G.GAME.blind.config.blind
+					local blind_sprite =
+						SMODS.create_sprite(0, 0, 1.2, 1.2, obj.atlas or "blind_chips", copy_table(G.GAME.blind.pos))
+					blind_sprite:define_draw_steps({
+						{ shader = "dissolve", shadow_height = 0.05 },
+						{ shader = "dissolve" },
+					})
+					table.insert(left_text, {
+						n = G.UIT.O,
+						config = {
+							w = 1.2,
+							h = 1.2,
+							object = blind_sprite,
+							hover = true,
+							can_collide = false,
+						},
+					})
+
+					table.insert(left_text, config.saved and {
+						n = G.UIT.C,
+						config = { padding = 0.05, align = "cm" },
+						nodes = {
+							{
+								n = G.UIT.R,
+								config = { align = "cm" },
+								nodes = {
+									{
+										n = G.UIT.O,
+										config = {
+											object = DynaText({
+												string = {
+													" "
+														.. (type(G.GAME.saved_text) == "string" and (G.localization.misc.dictionary[G.GAME.saved_text] and localize(
+															G.GAME.saved_text
+														) or G.GAME.saved_text) or localize("ph_mr_bones"))
+														.. " ",
+												},
+												colours = { G.C.FILTER },
+												shadow = true,
+												pop_in = 0,
+												scale = 0.5 * scale,
+												silent = true,
+											}),
+										},
+									},
+								},
+							},
+						},
+					} or {
+						n = G.UIT.C,
+						config = { padding = 0.05, align = "cm" },
+						nodes = {
+							{
+								n = G.UIT.R,
+								config = { align = "cm" },
+								nodes = {
+									{
+										n = G.UIT.O,
+										config = {
+											object = DynaText({
+												string = { " " .. localize("ph_score_at_least") .. " " },
+												colours = { G.C.UI.TEXT_LIGHT },
+												shadow = true,
+												pop_in = 0,
+												scale = 0.4 * scale,
+												silent = true,
+											}),
+										},
+									},
+								},
+							},
+							{
+								n = G.UIT.R,
+								config = { align = "cm", minh = 0.8 },
+								nodes = {
+									{
+										n = G.UIT.O,
+										config = {
+											w = 0.5,
+											h = 0.5,
+											object = stake_sprite,
+											hover = true,
+											can_collide = false,
+										},
+									},
+									{
+										n = G.UIT.T,
+										config = {
+											text = G.GAME.blind.chip_text,
+											scale = scale_number(G.GAME.blind.chips, scale, 100000),
+											colour = G.C.RED,
+											shadow = true,
+										},
+									},
+								},
+							},
+						},
+					})
+				elseif string.find(config.name, "tag") then
+					local blind_sprite = SMODS.create_sprite(0, 0, 0.7, 0.7, "tags", copy_table(config.pos))
+					blind_sprite:define_draw_steps({
+						{ shader = "dissolve", shadow_height = 0.05 },
+						{ shader = "dissolve" },
+					})
+					blind_sprite:juice_up()
+					table.insert(left_text, {
+						n = G.UIT.O,
+						config = {
+							w = 0.7,
+							h = 0.7,
+							object = blind_sprite,
+							hover = true,
+							can_collide = false,
+						},
+					})
+					table.insert(left_text, {
+						n = G.UIT.O,
+						config = {
+							object = DynaText({
+								string = { config.condition },
+								colours = { G.C.UI.TEXT_LIGHT },
+								shadow = true,
+								pop_in = 0,
+								scale = 0.4 * scale,
+								silent = true,
+							}),
+						},
+					})
+				elseif config.name == "hands" then
+					table.insert(left_text, {
+						n = G.UIT.T,
+						config = {
+							text = config.disp or config.dollars,
+							scale = 0.8 * scale,
+							colour = G.C.BLUE,
+							shadow = true,
+							juice = true,
+						},
+					})
+					table.insert(left_text, {
+						n = G.UIT.O,
+						config = {
+							object = DynaText({
+								string = {
+									" " .. localize({
+										type = "variable",
+										key = "remaining_hand_money",
+										vars = { G.GAME.modifiers.money_per_hand or 1 },
+									}),
+								},
+								colours = { G.C.UI.TEXT_LIGHT },
+								shadow = true,
+								pop_in = 0,
+								scale = 0.4 * scale,
+								silent = true,
+							}),
+						},
+					})
+				elseif config.name == "discards" then
+					table.insert(left_text, {
+						n = G.UIT.T,
+						config = {
+							text = config.disp or config.dollars,
+							scale = 0.8 * scale,
+							colour = G.C.RED,
+							shadow = true,
+							juice = true,
+						},
+					})
+					table.insert(left_text, {
+						n = G.UIT.O,
+						config = {
+							object = DynaText({
+								string = {
+									" " .. localize({
+										type = "variable",
+										key = "remaining_discard_money",
+										vars = { G.GAME.modifiers.money_per_discard or 0 },
+									}),
+								},
+								colours = { G.C.UI.TEXT_LIGHT },
+								shadow = true,
+								pop_in = 0,
+								scale = 0.4 * scale,
+								silent = true,
+							}),
+						},
+					})
+				elseif string.find(config.name, "custom") then
+					if config.number then
+						table.insert(left_text, {
+							n = G.UIT.T,
+							config = {
+								text = config.number,
+								scale = config.number_scale or (0.8 * scale),
+								colour = config.number_colour or G.C.FILTER,
+								shadow = true,
+								juice = true,
+							},
+						})
+					end
+					table.insert(left_text, {
+						n = G.UIT.O,
+						config = {
+							object = DynaText({
+								string = { "" .. config.text },
+								colours = { config.text_colour or G.C.UI.TEXT_LIGHT },
+								shadow = true,
+								pop_in = 0,
+								scale = config.text_scale or (0.4 * scale),
+								silent = true,
+							}),
+						},
+					})
+				elseif string.find(config.name, "joker") then
+					local loc_opts = config.loc_opts or {}
+					local vars = loc_opts.vars
+					if not vars and type(config.card.config.center.loc_vars) == "function" then
+						local res = config.card.config.center:loc_vars({}, config.card)
+						vars = res.name_vars or res.vars or {}
+					end
+					table.insert(left_text, {
+						n = G.UIT.O,
+						config = {
+							object = DynaText({
+								string = loc_opts.text or localize({
+									type = "name_text",
+									set = loc_opts.set or config.card.config.center.set,
+									key = loc_opts.key or config.card.config.center.key,
+									vars = vars,
+								}),
+								colours = { loc_opts.text_colour or G.C.FILTER },
+								shadow = true,
+								pop_in = 0,
+								scale = (loc_opts.scale or 0.6) * scale,
+								silent = true,
+							}),
+						},
+					})
+				elseif config.name == "interest" then
+					table.insert(left_text, {
+						n = G.UIT.T,
+						config = {
+							text = num_dollars,
+							scale = 0.8 * scale,
+							colour = G.C.MONEY,
+							shadow = true,
+							juice = true,
+						},
+					})
+					table.insert(left_text, {
+						n = G.UIT.O,
+						config = {
+							object = DynaText({
+								string = {
+									" " .. localize({
+										type = "variable",
+										key = "interest",
+										vars = {
+											G.GAME.interest_amount,
+											5,
+											G.GAME.interest_amount * G.GAME.interest_cap / 5,
+										},
+									}),
+								},
+								colours = { G.C.UI.TEXT_LIGHT },
+								shadow = true,
+								pop_in = 0,
+								scale = 0.4 * scale,
+								silent = true,
+							}),
+						},
+					})
+				end
+				local full_row = {
+					n = G.UIT.R,
+					config = { align = "cm", minw = 5 },
+					nodes = {
+						{
+							n = G.UIT.C,
+							config = { padding = 0.05, minw = width * 0.55, minh = 0.61, align = "cl" },
+							nodes = left_text,
+						},
+						{
+							n = G.UIT.C,
+							config = { padding = 0.05, minw = width * 0.45, align = "cr" },
+							nodes = {
+								{ n = G.UIT.C, config = { align = "cm", id = "dollar_" .. config.name }, nodes = {} },
+							},
+						},
+					},
+				}
+
+				if config.name == "blind1" then
+					G.GAME.blind:juice_up()
+				end
+				G.round_eval:add_child(
+					full_row,
+					G.round_eval:get_UIE_by_ID(config.bonus and "bonus_round_eval" or "base_round_eval")
+				)
+				play_sound("cancel", config.pitch or 1)
+				play_sound("highlight1", (1.5 * config.pitch) or 1, 0.2)
+				if config.card then
+					config.card:juice_up(0.7, 0.46)
+				end
+				return true
+			end,
+		}))
+		local dollar_row = 0
+		if num_dollars > 60 or num_dollars < -60 or currency_obj.currency_label then
+			if num_dollars < 0 then --if negative
+				G.E_MANAGER:add_event(Event({
+					trigger = "before",
+					delay = 0.38,
+					func = function()
+						G.round_eval:add_child({
+							n = G.UIT.R,
+							config = { align = "cm", id = "dollar_row_" .. (dollar_row + 1) .. "_" .. config.name },
+							nodes = {
+								{
+									n = G.UIT.O,
+									config = {
+										object = DynaText({
+											string = { currency_obj.generate_ease_text(num_dollars) },
+											colours = { currency_obj.decrease_colour },
+											shadow = true,
+											pop_in = 0,
+											scale = 0.65,
+											float = true,
+											font = currency_obj.font and SMODS.Fonts[currency_obj.font],
+										}),
+									},
+								},
+							},
+						}, G.round_eval:get_UIE_by_ID("dollar_" .. config.name))
+						play_sound(currency_obj.scoring_sfx_key, 0.9 + 0.2 * math.random(), 0.7)
+						play_sound(currency_obj.echo_sfx_key, 1.3, 0.8)
+						return true
+					end,
+				}))
+			else --if positive
+				G.E_MANAGER:add_event(Event({
+					trigger = "before",
+					delay = 0.38,
+					func = function()
+						G.round_eval:add_child({
+							n = G.UIT.R,
+							config = { align = "cm", id = "dollar_row_" .. (dollar_row + 1) .. "_" .. config.name },
+							nodes = {
+								{
+									n = G.UIT.O,
+									config = {
+										object = DynaText({
+											string = { currency_obj.generate_ease_text(num_dollars) },
+											colours = { currency_obj.colour },
+											shadow = true,
+											pop_in = 0,
+											scale = 0.65,
+											float = true,
+											font = currency_obj.font and SMODS.Fonts[currency_obj.font],
+										}),
+									},
+								},
+							},
+						}, G.round_eval:get_UIE_by_ID("dollar_" .. config.name))
+
+						play_sound(currency_obj.scoring_sfx_key, 0.9 + 0.2 * math.random(), 0.7)
+						play_sound(currency_obj.echo_sfx_key, 1.3, 0.8)
+						return true
+					end,
+				}))
+				--asdf
+			end
+		else
+			local dollars_to_loop
+			if num_dollars < 0 then
+				dollars_to_loop = (num_dollars * -1) + 1
+			else
+				dollars_to_loop = num_dollars
+			end
+			for i = 1, dollars_to_loop do
+				G.E_MANAGER:add_event(Event({
+					trigger = "before",
+					delay = 0.18 - ((num_dollars > 20 and 0.13) or (num_dollars > 9 and 0.1) or 0),
+					func = function()
+						if i % 30 == 1 then
+							G.round_eval:add_child({
+								n = G.UIT.R,
+								config = {
+									align = "cm",
+									id = "dollar_row_" .. (dollar_row + 1) .. "_" .. config.name,
+								},
+								nodes = {},
+							}, G.round_eval:get_UIE_by_ID("dollar_" .. config.name))
+							dollar_row = dollar_row + 1
+						end
+
+						local r
+						if i == 1 and num_dollars < 0 then
+							r = {
+								n = G.UIT.T,
+								config = {
+									text = "-",
+									colour = currency_obj.decrease_colour,
+									scale = ((num_dollars < -20 and 0.28) or (num_dollars < -9 and 0.43) or 0.58),
+									shadow = true,
+									hover = true,
+									can_collide = false,
+									juice = true,
+								},
+							}
+							play_sound(
+								currency_obj.scoring_sfx_key,
+								0.9 + 0.2 * math.random(),
+								0.7 - (num_dollars < -20 and 0.2 or 0)
+							)
+						else
+							if num_dollars < 0 then
+								r = {
+									n = G.UIT.T,
+									config = {
+										text = (currency_obj.currency_prefix or "") ~= ""
+												and currency_obj.currency_prefix
+											or currency_obj.currency_suffix,
+										colour = currency_obj.decrease_colour,
+										scale = ((num_dollars > 20 and 0.28) or (num_dollars > 9 and 0.43) or 0.58),
+										shadow = true,
+										hover = true,
+										can_collide = false,
+										juice = true,
+										font = currency_obj.font and SMODS.Fonts[currency_obj.font],
+									},
+								}
+							else
+								r = {
+									n = G.UIT.T,
+									config = {
+										text = (currency_obj.currency_prefix or "") ~= ""
+												and currency_obj.currency_prefix
+											or currency_obj.currency_suffix,
+										colour = currency_obj.colour,
+										scale = ((num_dollars > 20 and 0.28) or (num_dollars > 9 and 0.43) or 0.58),
+										shadow = true,
+										hover = true,
+										can_collide = false,
+										juice = true,
+										font = currency_obj.font and SMODS.Fonts[currency_obj.font],
+									},
+								}
+							end
+						end
+						play_sound(
+							currency_obj.scoring_sfx_key,
+							0.9 + 0.2 * math.random(),
+							0.7 - (num_dollars > 20 and 0.2 or 0)
+						)
+
+						if config.name == "blind1" then
+							G.GAME.current_round.dollars_to_be_earned = G.GAME.current_round.dollars_to_be_earned:sub(2)
+						end
+
+						G.round_eval:add_child(
+							r,
+							G.round_eval:get_UIE_by_ID("dollar_row_" .. dollar_row .. "_" .. config.name)
+						)
+						G.VIBRATION = G.VIBRATION + 0.4
+						return true
+					end,
+				}))
+			end
+		end
+	else
+		delay(0.4)
+		G.E_MANAGER:add_event(Event({
+			trigger = "before",
+			delay = 0.5,
+			func = function()
+				UIBox({
+					definition = {
+						n = G.UIT.ROOT,
+						config = { align = "cm", colour = G.C.CLEAR },
+						nodes = {
+							{
+								n = G.UIT.R,
+								config = {
+									id = "cash_out_button",
+									align = "cm",
+									padding = 0.1,
+									minw = 7,
+									r = 0.15,
+									colour = G.C.ORANGE,
+									shadow = true,
+									hover = true,
+									one_press = true,
+									button = "cash_out",
+									focus_args = { snap_to = true },
+								},
+								nodes = {
+									{
+										n = G.UIT.T,
+										config = {
+											text = localize("b_cash_out") .. ": ",
+											scale = 1,
+											colour = G.C.UI.TEXT_LIGHT,
+											shadow = true,
+										},
+									},
+									{
+										n = G.UIT.T,
+										config = {
+											text = localize("$") .. format_ui_value(config.dollars),
+											scale = 1.2 * scale,
+											colour = G.C.WHITE,
+											shadow = true,
+											juice = true,
+										},
+									},
+								},
+							},
+						},
+					},
+					config = {
+						align = "tmi",
+						offset = { x = 0, y = 0.4 },
+						major = G.round_eval,
+					},
+				})
+
+				--local left_text = {n=G.UIT.R, config={id = 'cash_out_button', align = "cm", padding = 0.1, minw = 2, r = 0.15, colour = G.C.ORANGE, shadow = true, hover = true, one_press = true, button = 'cash_out', focus_args = {snap_to = true}}, nodes={
+				--    {n=G.UIT.T, config={text = localize('b_cash_out')..": ", scale = 1, colour = G.C.UI.TEXT_LIGHT, shadow = true}},
+				--    {n=G.UIT.T, config={text = localize('$')..format_ui_value(config.dollars), scale = 1.3*scale, colour = G.C.WHITE, shadow = true, juice = true}}
+				--}}
+				--G.round_eval:add_child(left_text,G.round_eval:get_UIE_by_ID('eval_bottom'))
+
+				G.GAME.current_round.dollars = config.dollars
+
+				play_sound(currency_obj.echo_sfx_key, config.pitch or 1)
+				G.VIBRATION = G.VIBRATION + 1
+				return true
+			end,
+		}))
+	end
+end

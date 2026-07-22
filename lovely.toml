@@ -158,7 +158,6 @@ sell = Wallet.generate_custom_sell_button(card) or sell
 '''
 match_indent = true
 
-
 [[patches]]
 [patches.pattern]
 target = "functions/UI_definitions.lua" # create_shop_card_ui
@@ -168,5 +167,59 @@ local t2 = card.ability.set == 'Voucher' and {
 position = "before"
 payload = '''
 t1 = Wallet.generate_custom_cost_display(card) or t1
+'''
+match_indent = true
+
+[[patches]]
+[patches.pattern]
+target = "functions/state_events.lua" # G.FUNCS.evaluate_round
+pattern = '''
+-- TARGET: calc_dollar_bonus per card
+'''
+position = "after"
+payload = '''
+local calc_object = _card
+if calc_object then
+    i, pitch = Wallet.calc_currency_bonus(calc_object, i, pitch)
+end
+'''
+match_indent = true
+
+[[patches]]
+[patches.pattern]
+target = "functions/state_events.lua" # G.FUNCS.evaluate_round
+pattern = '''
+for _, target in ipairs(SMODS.get_card_areas('individual', 'calc_dollar_bonus')) do
+'''
+position = "after"
+payload = '''
+local calc_object = target.object
+if calc_object then
+    i, pitch = Wallet.calc_currency_bonus(calc_object, i, pitch)
+end
+'''
+match_indent = true
+
+[[patches]]
+[patches.pattern]
+target = "functions/state_events.lua" # G.FUNCS.evaluate_round
+pattern = '''
+local dollars = 0
+'''
+position = "after"
+payload = '''
+Wallet.cashout_currency_amts = {}
+'''
+match_indent = true
+
+[[patches]]
+[patches.pattern]
+target = "functions/button_callbacks.lua" # G.FUNCS.cash_out
+pattern = '''
+ease_dollars(G.GAME.current_round.dollars)
+'''
+position = "after"
+payload = '''
+Wallet.process_cashout()
 '''
 match_indent = true
