@@ -33,5 +33,20 @@ Wallet.Currency = setmetatable({}, {
 ---@class SMODS.Consumable
 ---@field calc_currency_bonus? fun(self: SMODS.Consumable, card: Card): table?
 
+---@class SMODS.Back
+---@field calc_currency_bonus? fun(self: SMODS.Back, back: Back): table?
+
+---@class SMODS.Voucher
+---@field calc_currency_bonus? fun(self: SMODS.Voucher, card: Card): table?
+
+---@class SMODS.Blind
+---@field calc_currency_bonus? fun(self: SMODS.Blind, blind: Blind): table?
+
+---@class SMODS.Stake
+---@field calc_currency_bonus? fun(self: SMODS.Stake): table?
+
+---@class SMODS.Challenge
+---@field calc_currency_bonus? fun(self: SMODS.Challenge): table?
+
 ---@class Mod
 ---@field calc_currency_bonus? fun(self: Mod, card: Card): table?

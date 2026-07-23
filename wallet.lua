@@ -845,6 +845,15 @@ function SMODS.get_mods_scoring_targets(_context, ...)
 	return ret
 end
 
+local get_stake_scoring_targets_hook = SMODS.get_stake_scoring_targets
+function SMODS.get_stake_scoring_targets(_context, ...)
+	local ret = get_stake_scoring_targets_hook(_context, ...)
+	if _context == "calc_dollar_bonus" then
+		ret = SMODS.merge_lists({ ret, SMODS.get_stake_scoring_targets_hook("calc_currency_bonus", ...) })
+	end
+	return ret
+end
+
 function Wallet.add_to_cashout(key, amt)
 	local entry = {
 		key = key,
@@ -879,6 +888,20 @@ function Card:calc_currency_bonus()
 	end
 end
 
+function Blind:calc_currency_bonus()
+	local obj = self.config.center
+	if obj.calc_currency_bonus and type(obj.calc_currency_bonus) == "function" then
+		return obj:calc_currency_bonus(self)
+	end
+end
+
+function Back:calc_currency_bonus()
+	local obj = self.config.center
+	if obj.calc_currency_bonus and type(obj.calc_currency_bonus) == "function" then
+		return obj:calc_currency_bonus(self)
+	end
+end
+
 function Wallet.calc_currency_bonus(obj, i, pitch)
 	local n = i
 	local current_pitch = pitch
@@ -890,27 +913,29 @@ function Wallet.calc_currency_bonus(obj, i, pitch)
 		if obj.is and obj:is(Card) then
 			for _, key in ipairs(Wallet.Currency.obj_buffer) do
 				if res[key] then
-					local res_args = res[key][2] or {}
+					local amt = type(res[key]) == "number" and res[key] or res[key][1]
+					local res_args = type(res[key]) == "number" and {} or res[key][2]
 					if not res_args.no_eval_row then
 						n = n + 1
 						Wallet.add_custom_round_eval_row({
 							currency_key = key,
-							dollars = res[key][1],
+							dollars = amt,
 							bonus = true,
 							name = "joker" .. n,
 							pitch = current_pitch,
 							card = obj,
-							loc_opts = res_args,
+							loc_opts = res_args or {},
 						})
 						current_pitch = current_pitch + 0.06
 					end
-					Wallet.add_to_cashout(key, res[key][1])
+					Wallet.add_to_cashout(amt)
 				end
 			end
 		else
 			for _, key in ipairs(Wallet.Currency.obj_buffer) do
 				if res[key] then
-					local res_args = res[key][2] or {}
+					local amt = type(res[key]) == "number" and res[key] or res[key][1]
+					local res_args = type(res[key]) == "number" and {} or res[key][2]
 					if not res_args.no_eval_row then
 						if res_args.text then
 							name = res_args.text
@@ -932,9 +957,9 @@ function Wallet.calc_currency_bonus(obj, i, pitch)
 						end
 						n = n + 1
 						Wallet.add_custom_round_eval_row({
-							dollars = res[key][1],
+							dollars = amt,
 							bonus = true,
-							name = "custom_individual" .. i,
+							name = "custom_individual" .. n,
 							pitch = pitch,
 							text_colour = res_args.text_colour or G.C.FILTER,
 							text = name or "ERROR",
@@ -943,7 +968,7 @@ function Wallet.calc_currency_bonus(obj, i, pitch)
 						})
 						current_pitch = current_pitch + 0.06
 					end
-					Wallet.add_to_cashout(key, res[key][1])
+					Wallet.add_to_cashout(key, amt)
 				end
 			end
 		end

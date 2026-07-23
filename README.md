@@ -57,6 +57,31 @@ card.ability.perma_h_modprefix_your_currency -- Gives currency when held in hand
 You can also make a center in the shop cost a custom currency by adding `currency_cost = key` to the center.
 `key` must be the full key of a currency, including the mod prefix.
 
+In addition, you may define a `calc_currency_bonus` function on any object that supports `calc_dollar_bonus`.
+On a Joker, this function should look something like this:
+```lua
+calc_currency_bonus = function(self, card)
+	return {
+		modprefix_your_currency = amount,
+		modprefix_another_currency = amount,
+	}
+end
+```
+Like with `calc_dollar_bonus`, you can customize the cashout text.
+```lua
+calc_currency_bonus = function(self, card)
+	return {
+		modprefix_your_currency = {
+			amount, 
+			{
+				text = "Your Text Here",
+				text_colour = G.C.BLUE,
+			}
+		}
+	}
+end
+```
+
 ## Utility Functions
 
 ### `Wallet.mod_buffer(currency: string, amt: number)`
