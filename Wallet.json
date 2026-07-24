@@ -9,7 +9,7 @@
     "main_file": "wallet.lua",
     "priority": -100,
     "badge_colour": "f3b958",
-    "version": "1.2.0",
+    "version": "1.2.1",
     "dependencies": [
         "Steamodded (>=1.0.0~BETA-1814a)"
     ],

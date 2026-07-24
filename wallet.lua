@@ -1361,7 +1361,7 @@ function Wallet.add_custom_round_eval_row(config)
 			end,
 		}))
 		local dollar_row = 0
-		if num_dollars > 60 or num_dollars < -60 or currency_obj.currency_label then
+		if num_dollars > 60 or num_dollars < -60 or currency_obj.currency_label or currency_obj.cashout_always_number then
 			if num_dollars < 0 then --if negative
 				G.E_MANAGER:add_event(Event({
 					trigger = "before",

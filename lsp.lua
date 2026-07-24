@@ -19,6 +19,7 @@
 ---@field generate_ease_text? fun(self: Wallet.Currency, mod: number): string
 ---@field no_ui? boolean [ADVANCED] If true, this currency's amount will not be displayed when hovering over your dollars. Use when you have a custom display UI for your currency.
 ---@field calc_cost? fun(self: Wallet.Currency, card: Card, base_cost: number): number? Called when calculating a card's cost. Return a number to set the card's cost to that number.
+---@field cashout_always_number? boolean Whether or not this currency should display a numeric amount earned regardless of amount.
 
 ---@overload fun(self: Wallet.Currency): Wallet.Currency
 Wallet.Currency = setmetatable({}, {

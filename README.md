@@ -130,6 +130,7 @@ This class has **no** class prefix.
 	- `scoring_sfx_key = "coin3"` This sound effect played after any changes in this currency as a result of calculation.
 	- `echo_sfx_key = "coin6"` This sound effect is played during cashout and is intended to have a more echo-y effect.
 	- `no_ui = nil` **_(ADVANCED)_** If set to true, will prevent this currency from showing up when hovering over your dollars. You should define your own visuals if this is set to true.
+	- `cashout_always_number = nil` If set to true, any time this currency appears in cashout, the amount will always be displayed with a number instead of individually displaying the symbol that represents the currency if the amount of currency does not exceed a certain threshold.
 
 ### Methods
 - `pre_ease_func(self: Wallet.Currency, mod: number, instant: boolean) -> number?`
