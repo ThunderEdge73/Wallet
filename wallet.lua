@@ -889,14 +889,14 @@ function Card:calc_currency_bonus()
 end
 
 function Blind:calc_currency_bonus()
-	local obj = self.config.center
+	local obj = self.config.blind
 	if obj.calc_currency_bonus and type(obj.calc_currency_bonus) == "function" then
 		return obj:calc_currency_bonus(self)
 	end
 end
 
 function Back:calc_currency_bonus()
-	local obj = self.config.center
+	local obj = self.effect.center
 	if obj.calc_currency_bonus and type(obj.calc_currency_bonus) == "function" then
 		return obj:calc_currency_bonus(self)
 	end
