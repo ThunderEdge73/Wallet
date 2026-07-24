@@ -849,7 +849,7 @@ local get_stake_scoring_targets_hook = SMODS.get_stake_scoring_targets
 function SMODS.get_stake_scoring_targets(_context, ...)
 	local ret = get_stake_scoring_targets_hook(_context, ...)
 	if _context == "calc_dollar_bonus" then
-		ret = SMODS.merge_lists({ ret, SMODS.get_stake_scoring_targets_hook("calc_currency_bonus", ...) })
+		ret = SMODS.merge_lists({ ret, SMODS.get_stake_scoring_targets("calc_currency_bonus", ...) })
 	end
 	return ret
 end
