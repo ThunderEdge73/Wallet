@@ -16,7 +16,7 @@
 ---@field pre_ease_func? fun(self: Wallet.Currency, mod: number, instant: boolean): number? Called before the amount of this currency changes. 
 ---@field post_ease_func? fun(self: Wallet.Currency, mod: number, instant: boolean) Called after the amount of this currency changes. Use `SMODS.calculate_context` inside this function to handle contexts that should trigger in response to changes in this currency.
 ---@field custom_ease_func? fun(self: Wallet.Currency, mod: number) [ADVANCED] Define this to manually control how this currency changes and the associated animations.
----@field generate_ease_text? fun(self: Wallet.Currency, mod: number): string
+---@field generate_ease_text? fun(self: Wallet.Currency, mod: number, unsigned: boolean?): string
 ---@field no_ui? boolean [ADVANCED] If true, this currency's amount will not be displayed when hovering over your dollars. Use when you have a custom display UI for your currency.
 ---@field calc_cost? fun(self: Wallet.Currency, card: Card, base_cost: number): number? Called when calculating a card's cost. Return a number to set the card's cost to that number.
 ---@field cashout_always_number? boolean Whether or not this currency should display a numeric amount earned regardless of amount.

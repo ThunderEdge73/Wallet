@@ -170,8 +170,8 @@ Wallet.Currency = SMODS.GameObject:extend({
 	obj_buffer = {},
 	obj_table = Wallet.Currencies,
 	starting_amount = 0,
-	generate_ease_text = function(self, amt)
-		local ret = (amt >= 0 and "+" or "-") .. self.currency_prefix .. tostring(math.abs(amt)) .. self.currency_suffix
+	generate_ease_text = function(self, amt, unsigned)
+		local ret = (unsigned and "" or (amt >= 0 and "+" or "-")) .. self.currency_prefix .. tostring(math.abs(amt)) .. self.currency_suffix
 		if self.currency_label then
 			ret = ret .. " " .. localize(self.currency_label)
 		end
@@ -1405,7 +1405,7 @@ function Wallet.add_custom_round_eval_row(config)
 									n = G.UIT.O,
 									config = {
 										object = DynaText({
-											string = { currency_obj:generate_ease_text(num_dollars) },
+											string = { currency_obj:generate_ease_text(num_dollars, true) },
 											colours = { currency_obj.colour },
 											shadow = true,
 											pop_in = 0,
