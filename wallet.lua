@@ -1405,7 +1405,7 @@ function Wallet.add_custom_round_eval_row(config)
 									n = G.UIT.O,
 									config = {
 										object = DynaText({
-											string = { currency_obj.generate_ease_text(num_dollars) },
+											string = { currency_obj:generate_ease_text(num_dollars) },
 											colours = { currency_obj.colour },
 											shadow = true,
 											pop_in = 0,
