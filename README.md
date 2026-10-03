@@ -119,7 +119,7 @@ This class has **no** class prefix.
 - **Required Parameters**:
 	- `key`
 - **Optional Parameters**
-	- `font = nil` Set this to the full key of a font to have it 
+	- `font = nil` Set this to the full key of a font to have this currency's symbol use a particular font.
 	- `starting_amount = 0` How much of this currency you start runs with.
 	- `colour = G.C.MONEY` The primary colour associated with this currency.
 	- `decrease_colour = G.C.RED` The colour associated with decreases in this currency.
