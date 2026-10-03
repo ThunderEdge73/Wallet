@@ -1,0 +1,9 @@
+{
+  "name": "Wallet",
+  "version_number": "1.3.0",
+  "website_url": "https://github.com/ThunderEdge73/Wallet",
+  "description": "An API mod for adding custom currencies to Balatro.",
+  "dependencies": [
+    "Steamodded-Steamodded-26.1002.0"
+  ]
+}

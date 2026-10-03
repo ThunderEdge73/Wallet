@@ -9,9 +9,9 @@
     "main_file": "wallet.lua",
     "priority": -100,
     "badge_colour": "f3b958",
-    "version": "1.2.5",
+    "version": "1.3.0",
     "dependencies": [
-        "Steamodded (>=1.0.0~BETA-1814a)"
+        "Steamodded (>=26.1002.0)"
     ],
     "icon_path": "modicon.png"
 }
