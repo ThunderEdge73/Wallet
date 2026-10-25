@@ -349,6 +349,15 @@ function Card:set_cost_value()
 	end
 end
 
+--this was added by amber!!
+local can_sell_card_hook = Card.can_sell_card
+function Card:can_sell_card(context, ...)
+	local ret = can_sell_card_hook(self, context, ...)
+	if self.ability.eternal then ret = false end
+	return ret
+end
+
+
 function Wallet.get_edition_extra_cost(card)
 	if card.edition then
 		for k, v in pairs(G.P_CENTER_POOLS.Edition) do
